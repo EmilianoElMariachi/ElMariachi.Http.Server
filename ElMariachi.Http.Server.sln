@@ -1,0 +1,60 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30621.155
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ElMariachi.Http", "ElMariachi.Http\ElMariachi.Http.csproj", "{4C4A777D-A6DF-4040-B8B3-C651380AC165}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ElMariachi.Http.Header", "ElMariachi.Http.Header\ElMariachi.Http.Header.csproj", "{DD1399F5-8C6D-49BF-8B02-2F2F8FFBB840}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ElMariachi.Http.Header.Test", "ElMariachi.Http.Header.Test\ElMariachi.Http.Header.Test.csproj", "{3563044D-7236-426F-8334-99A8F91C82F7}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ElMariachi.Http.Server", "ElMariachi.Http.Server\ElMariachi.Http.Server.csproj", "{7F2DE7AB-261D-4EC8-83A1-7B4A9660EFFB}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "ElMariachi.Http.Server.Test", "ElMariachi.Http.Server.Test\ElMariachi.Http.Server.Test.csproj", "{1450DBEE-AEB2-4741-99DD-E05440062F35}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{A4CCA18B-E88E-4EB7-8B08-3003E2877BC9}"
+	ProjectSection(SolutionItems) = preProject
+		README.md = README.md
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ElMariachi.Http.Server.Demo", "ElMariachi.Http.Server.Demo\ElMariachi.Http.Server.Demo.csproj", "{9A225FBD-9F46-41A9-AD80-140B5F7E35F9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4C4A777D-A6DF-4040-B8B3-C651380AC165}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4C4A777D-A6DF-4040-B8B3-C651380AC165}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4C4A777D-A6DF-4040-B8B3-C651380AC165}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4C4A777D-A6DF-4040-B8B3-C651380AC165}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DD1399F5-8C6D-49BF-8B02-2F2F8FFBB840}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DD1399F5-8C6D-49BF-8B02-2F2F8FFBB840}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DD1399F5-8C6D-49BF-8B02-2F2F8FFBB840}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DD1399F5-8C6D-49BF-8B02-2F2F8FFBB840}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3563044D-7236-426F-8334-99A8F91C82F7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3563044D-7236-426F-8334-99A8F91C82F7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3563044D-7236-426F-8334-99A8F91C82F7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3563044D-7236-426F-8334-99A8F91C82F7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7F2DE7AB-261D-4EC8-83A1-7B4A9660EFFB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7F2DE7AB-261D-4EC8-83A1-7B4A9660EFFB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7F2DE7AB-261D-4EC8-83A1-7B4A9660EFFB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7F2DE7AB-261D-4EC8-83A1-7B4A9660EFFB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1450DBEE-AEB2-4741-99DD-E05440062F35}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1450DBEE-AEB2-4741-99DD-E05440062F35}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1450DBEE-AEB2-4741-99DD-E05440062F35}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1450DBEE-AEB2-4741-99DD-E05440062F35}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9A225FBD-9F46-41A9-AD80-140B5F7E35F9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9A225FBD-9F46-41A9-AD80-140B5F7E35F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9A225FBD-9F46-41A9-AD80-140B5F7E35F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9A225FBD-9F46-41A9-AD80-140B5F7E35F9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {BAD0E701-AB83-4AD4-A463-EEFA6DBCAD28}
+	EndGlobalSection
+EndGlobal

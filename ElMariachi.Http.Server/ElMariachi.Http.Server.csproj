@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <Authors>EmilianoElMariachi</Authors>
+    <PackageLicenseExpression>GPL-3.0-only</PackageLicenseExpression>
+    <Nullable>enable</Nullable>
+    <Version>1.0.0</Version>
+    <RepositoryUrl>https://github.com/EmilianoElMariachi/ElMariachi.Http.Server</RepositoryUrl>
+    <Description>A lightweight HTTP server on top of TCP listener.
+No admin rights required.</Description>
+    <PackageTags>.NET HTTP Server C#</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ElMariachi.Http.Header\ElMariachi.Http.Header.csproj" />
+  </ItemGroup>
+
+</Project>
