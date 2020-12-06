@@ -2,7 +2,7 @@
 
 namespace ElMariachi.Http.Header.Managed
 {
-    public static class IRangeExt
+    public static class RangeExtension
     {
         /// <summary>
         /// Returns true if range is valid (according to RFC2616 https://tools.ietf.org/html/rfc2616#section-14.35)

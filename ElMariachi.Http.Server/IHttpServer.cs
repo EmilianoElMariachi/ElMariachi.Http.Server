@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using ElMariachi.Http.Server.Models;
@@ -7,6 +8,21 @@ namespace ElMariachi.Http.Server
 {
     public interface IHttpServer
     {
+
+        /// <summary>
+        /// Get or set the server IP address.
+        /// Can't be set when server is started
+        /// </summary>
+        /// <exception cref="InvalidOperationException"></exception>
+        IPAddress IPAddress { get; set; }
+
+        /// <summary>
+        /// Get or set the server port.
+        /// Can't be set when server is started
+        /// </summary>
+        /// <exception cref="InvalidOperationException"></exception>
+        int Port { get; set; }
+
         /// <summary>
         /// Get or set the HTTP input stream reading timeout in milliseconds.
         /// Set <see cref="Timeout.Infinite"/> for no timeout (not recommended).
@@ -44,7 +60,7 @@ namespace ElMariachi.Http.Server
         /// <summary>
         /// Get a boolean indicating that the server is currently listening
         /// </summary>
-        bool IsListening { get; }
+        bool IsStarted { get; }
 
         /// <summary>
         /// Get a boolean indicating if connection is secure (HTTPS)
@@ -54,7 +70,7 @@ namespace ElMariachi.Http.Server
         /// <summary>
         /// Starts the server
         /// </summary>
-        /// <param name="requestHandler"></param>
+        /// <param name="requestHandler">The request handler</param>
         /// <returns></returns>
         Task Start(RequestHandler requestHandler);
 
@@ -65,11 +81,6 @@ namespace ElMariachi.Http.Server
         /// <param name="cancellationToken">The cancellation token for stopping the server</param>
         /// <returns></returns>
         Task Start(RequestHandler requestHandler, CancellationToken cancellationToken);
-
-        public static IHttpServer Create(IPAddress ipAddress, int port = 80)
-        {
-            return new HttpServer(ipAddress, port);
-        }
 
     }
 

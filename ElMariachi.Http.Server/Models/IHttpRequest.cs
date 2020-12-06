@@ -6,6 +6,9 @@ namespace ElMariachi.Http.Server.Models
 {
     public interface IHttpRequest
     {
+        /// <summary>
+        /// The request method (always uppercase)
+        /// </summary>
         string Method { get; }
 
         /// <summary>

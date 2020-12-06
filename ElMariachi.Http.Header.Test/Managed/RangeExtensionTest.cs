@@ -3,7 +3,7 @@ using Xunit;
 
 namespace ElMariachi.Http.Header.Test.Managed
 {
-    public class IRangeExtTest
+    public class RangeExtensionTest
     {
 
         [Fact]

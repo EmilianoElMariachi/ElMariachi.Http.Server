@@ -15,25 +15,54 @@ using Microsoft.Extensions.Logging;
 
 namespace ElMariachi.Http.Server
 {
-
-    public class HttpServer : IHttpServer
+    internal class HttpServer : IHttpServer
     {
         public const string SupportedHttpVersion = "HTTP/1.1";
 
-        private readonly TcpListenerEx _tcpListenerEx;
+        private TcpListenerEx? _tcpListenerEx;
 
         private readonly object _lock = new object();
         private readonly ILogger<HttpServer> _logger;
+        private readonly IHttpHeaderReader _headerReader;
+        private readonly IHttpInputStreamDecodingStrategy _inputStreamDecodingStrategy;
+        private readonly IHttpResponseSenderFactory _httpResponseSenderFactory;
+        private int _port = 80;
+        private IPAddress _ipAddress = IPAddress.Any;
 
-        public HttpServer(IPAddress ipAddress, int port = 80)
+        public HttpServer(ILogger<HttpServer> logger, IHttpHeaderReader headerReader, IHttpInputStreamDecodingStrategy inputStreamDecodingStrategy, IHttpResponseSenderFactory httpResponseSenderFactory)
         {
-            _tcpListenerEx = new TcpListenerEx(ipAddress, port);
-            _logger = HttpServices.LoggerFactory.CreateLogger<HttpServer>();
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _headerReader = headerReader ?? throw new ArgumentNullException(nameof(headerReader));
+            _inputStreamDecodingStrategy = inputStreamDecodingStrategy ?? throw new ArgumentNullException(nameof(inputStreamDecodingStrategy));
+            _httpResponseSenderFactory = httpResponseSenderFactory;
         }
 
         public int MaxHeadersSize { get; set; } = 8 * 1024; // 4KiB
 
         public int MaxRequestUriSize { get; set; } = 4 * 1024; // 4KiB
+
+        public IPAddress IPAddress
+        {
+            get => _ipAddress;
+            set
+            {
+                if (_tcpListenerEx != null)
+                    throw new InvalidOperationException("Server is started.");
+
+                _ipAddress = value;
+            }
+        }
+
+        public int Port
+        {
+            get => _port;
+            set
+            {
+                if (_tcpListenerEx != null)
+                    throw new InvalidOperationException("Server is started.");
+                _port = value;
+            }
+        }
 
         public int ReadTimeoutMs { get; set; } = 2000; // 2 sec
 
@@ -43,13 +72,13 @@ namespace ElMariachi.Http.Server
 
         public int MaxInputStreamCleaning { get; set; } = 4 * 1024 * 1024; // 4MiB
 
-        public bool IsListening
+        public bool IsStarted
         {
             get
             {
                 lock (_lock)
                 {
-                    return _tcpListenerEx.IsListening;
+                    return _tcpListenerEx != null;
                 }
             }
         }
@@ -66,14 +95,38 @@ namespace ElMariachi.Http.Server
             if (requestHandler == null)
                 throw new ArgumentNullException(nameof(requestHandler));
 
+            var ipAddress = IPAddress;
+            if (ipAddress == null)
+                throw new InvalidOperationException($"{nameof(IPAddress)} is not defined.");
+
+            if (_tcpListenerEx != null)
+                throw new InvalidOperationException("Server is already started.");
+
             lock (_lock)
             {
-                _tcpListenerEx.Start(cancellationToken);
-
-                return Task.Run(() =>
+                try
                 {
-                    ListenClients(requestHandler, cancellationToken);
-                }, cancellationToken);
+                    _tcpListenerEx = new TcpListenerEx(ipAddress, Port);
+
+                    _tcpListenerEx.Start(cancellationToken);
+
+                    return Task.Run(() =>
+                    {
+                        ListenClients(requestHandler, cancellationToken);
+                    }, cancellationToken).ContinueWith(task =>
+                    {
+                        _tcpListenerEx = null;
+                    }, cancellationToken);
+                }
+                catch
+                {
+                    try
+                    { _tcpListenerEx?.Stop(); }
+                    catch { }
+
+                    _tcpListenerEx = null;
+                    throw;
+                }
             }
         }
 
@@ -81,7 +134,7 @@ namespace ElMariachi.Http.Server
         {
             try
             {
-                while (!ct.IsCancellationRequested)
+                while (!ct.IsCancellationRequested && _tcpListenerEx != null)
                 {
                     var client = _tcpListenerEx.AcceptTcpClient();
                     Task.Run(() => HandleClient(client, requestHandler), ct);
@@ -112,7 +165,7 @@ namespace ElMariachi.Http.Server
 
                     networkStream.ReadTimeout = isFirstRequestWithClient ? ReadTimeoutMs : ConnectionKeepAliveTimeoutMs;
 
-                    IHttpResponseSender responseSender = new HttpResponseSender(networkStream, MaxInputStreamCleaning);
+                    var responseSender = _httpResponseSenderFactory.Create(networkStream, MaxInputStreamCleaning);
 
                     var httpInputStream = new HttpInputStream(networkStream, responseSender);
 
@@ -136,7 +189,7 @@ namespace ElMariachi.Http.Server
                     HttpRequest request;
                     try
                     {
-                        var header = HttpServices.HeaderReader.Read(httpInputStream, MaxMethodNameSize, MaxHeadersSize, MaxRequestUriSize);
+                        var header = _headerReader.Read(httpInputStream, MaxMethodNameSize, MaxHeadersSize, MaxRequestUriSize);
 
                         // Check HTTP version is supported
                         if (!string.Equals(header.HttpVersion, SupportedHttpVersion, StringComparison.OrdinalIgnoreCase))
@@ -167,7 +220,7 @@ namespace ElMariachi.Http.Server
                             }
                         }
 
-                        var inputStream = HttpServices.InputStreamDecodingStrategy.Create(httpInputStream, header);
+                        var inputStream = _inputStreamDecodingStrategy.Create(httpInputStream, header);
 
                         request = new HttpRequest(header, inputStream, absRequestUri, responseSender);
                     }

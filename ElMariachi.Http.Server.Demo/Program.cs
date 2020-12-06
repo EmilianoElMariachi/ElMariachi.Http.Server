@@ -1,10 +1,12 @@
 ﻿using System;
-using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using ElMariachi.Http.Server.Demo.Properties;
 using ElMariachi.Http.Server.Models;
 using ElMariachi.Http.Server.Models.ResponseContent;
+using ElMariachi.Http.Server.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace ElMariachi.Http.Server.Demo
 {
@@ -12,7 +14,16 @@ namespace ElMariachi.Http.Server.Demo
     {
         static async Task Main(string[] args)
         {
-            var httpServer = IHttpServer.Create(IPAddress.Any, 80);
+            var serviceCollection = new ServiceCollection();
+
+
+            serviceCollection.AddHttpServer();
+            serviceCollection.AddLogging(builder => builder.AddConsole());
+
+            var serviceProvider = serviceCollection.BuildServiceProvider();
+
+
+            var httpServer = serviceProvider.Get<IHttpServer>();
 
             var cts = new CancellationTokenSource();
             var serverTask = httpServer.Start(OnRequest, cts.Token);
@@ -44,7 +55,7 @@ namespace ElMariachi.Http.Server.Demo
                         Content = new StringResponseContent("<!DOCTYPE html><html><head><title>ElMariachi</title></head><body>Hello World!</body></html>", "text/html")
                     });
                 }
-                else if(request.AbsRequestUri.AbsolutePath == "/favicon.ico")
+                else if (request.AbsRequestUri.AbsolutePath == "/favicon.ico")
                 {
                     request.SendResponse(new HttpResponse(HttpStatus.Ok)
                     {
@@ -52,6 +63,11 @@ namespace ElMariachi.Http.Server.Demo
                     });
                 }
             }
+            else if (request.Method == "POST")
+            {
+                //request.ReadContentAsStringAsync();
+            }
         }
     }
+
 }

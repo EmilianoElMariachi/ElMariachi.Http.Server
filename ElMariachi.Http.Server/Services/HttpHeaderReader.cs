@@ -7,7 +7,7 @@ using ElMariachi.Http.Server.Streams.Input;
 
 namespace ElMariachi.Http.Server.Services
 {
-    public class HttpHeaderReader : IHttpHeaderReader
+    internal class HttpHeaderReader : IHttpHeaderReader
     {
 
         public IHttpHeader Read(Stream stream, int maxMethodNameSize, int maxHeadersSize, int maxRequestUriSize)

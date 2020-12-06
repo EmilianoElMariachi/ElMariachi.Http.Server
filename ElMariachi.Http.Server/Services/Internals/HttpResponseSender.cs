@@ -14,12 +14,16 @@ namespace ElMariachi.Http.Server.Services.Internals
     {
         private readonly NetworkStream _networkStream;
         private readonly int _maxInputStreamCleaning;
+        private readonly IDefaultResponseHeadersSetter _defaultResponseHeadersSetter;
+        private readonly IHttpHeadersSerializer _headersSerializer;
         private readonly object _lock = new object();
 
-        public HttpResponseSender(NetworkStream networkStream, int maxInputStreamCleaning)
+        public HttpResponseSender(NetworkStream networkStream, int maxInputStreamCleaning, IDefaultResponseHeadersSetter defaultResponseHeadersSetter, IHttpHeadersSerializer headersSerializer)
         {
             _networkStream = networkStream ?? throw new ArgumentNullException(nameof(networkStream));
             _maxInputStreamCleaning = maxInputStreamCleaning;
+            _defaultResponseHeadersSetter = defaultResponseHeadersSetter ?? throw new ArgumentNullException(nameof(defaultResponseHeadersSetter));
+            _headersSerializer = headersSerializer ?? throw new ArgumentNullException(nameof(headersSerializer));
         }
 
         public bool IsResponseSent { get; private set; }
@@ -54,7 +58,7 @@ namespace ElMariachi.Http.Server.Services.Internals
                 if (IsResponseSent)
                     throw new InvalidOperationException("A response was already sent for this request.");
 
-                HttpServices.DefaultResponseHeadersSetter.Set(headers);
+                _defaultResponseHeadersSetter.Set(headers);
 
                 CloseConnection = headers.Connection.Close;
                 SentResponse = response;
@@ -83,9 +87,9 @@ namespace ElMariachi.Http.Server.Services.Internals
             }
         }
 
-        private static void SendResponseHeader(HttpStatus status, IHttpHeaders headers, Stream outputStream)
+        private void SendResponseHeader(HttpStatus status, IHttpHeaders headers, Stream outputStream)
         {
-            var httpHeader = HttpServer.SupportedHttpVersion + " " + status.Code + " " + status.Description + HttpConst.LineReturn + HttpServices.HeadersSerializer.Serialize(headers) + HttpConst.LineReturn;
+            var httpHeader = HttpServer.SupportedHttpVersion + " " + status.Code + " " + status.Description + HttpConst.LineReturn + _headersSerializer.Serialize(headers) + HttpConst.LineReturn;
             outputStream.Write(Encoding.ASCII.GetBytes(httpHeader));
         }
 

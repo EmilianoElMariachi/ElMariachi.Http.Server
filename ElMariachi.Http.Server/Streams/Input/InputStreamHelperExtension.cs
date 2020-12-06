@@ -4,7 +4,7 @@ using ElMariachi.Http.Exceptions;
 
 namespace ElMariachi.Http.Server.Streams.Input
 {
-    public static class InputStreamHelperExt
+    public static class InputStreamHelperExtension
     {
         /// <summary>
         /// </summary>
