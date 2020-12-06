@@ -11,6 +11,7 @@ using ElMariachi.Http.Server.Models.ResponseContent;
 using ElMariachi.Http.Server.Services;
 using ElMariachi.Http.Server.Services.Internals;
 using ElMariachi.Http.Server.Streams.Input;
+using Microsoft.Extensions.Logging;
 
 namespace ElMariachi.Http.Server
 {
@@ -22,10 +23,12 @@ namespace ElMariachi.Http.Server
         private readonly TcpListenerEx _tcpListenerEx;
 
         private readonly object _lock = new object();
+        private readonly ILogger<HttpServer> _logger;
 
         public HttpServer(IPAddress ipAddress, int port = 80)
         {
             _tcpListenerEx = new TcpListenerEx(ipAddress, port);
+            _logger = HttpServices.LoggerFactory.CreateLogger<HttpServer>();
         }
 
         public int MaxHeadersSize { get; set; } = 8 * 1024; // 4KiB
@@ -92,7 +95,7 @@ namespace ElMariachi.Http.Server
 
         private async Task HandleClient(TcpClient client, RequestHandler requestHandler)
         {
-            Console.WriteLine($"Incoming client: {client.GetHashCode()}.");
+            _logger.LogInformation($"Incoming client: {client.GetHashCode()}.");
 
             NetworkStream? networkStream = null;
 
@@ -126,20 +129,20 @@ namespace ElMariachi.Http.Server
                         if (requestStart != null)
                         {
                             var requestEnd = DateTime.Now;
-                            Console.WriteLine($"Processing time (ms): {(requestEnd - requestStart.Value).TotalMilliseconds}");
+                            _logger.LogInformation($"Processing time (ms): {(requestEnd - requestStart.Value).TotalMilliseconds}");
                         }
                     };
 
                     HttpRequest request;
                     try
                     {
-                        var header = HttpServices.Instance.HeaderReader.Read(httpInputStream, MaxMethodNameSize, MaxHeadersSize, MaxRequestUriSize);
+                        var header = HttpServices.HeaderReader.Read(httpInputStream, MaxMethodNameSize, MaxHeadersSize, MaxRequestUriSize);
 
                         // Check HTTP version is supported
                         if (!string.Equals(header.HttpVersion, SupportedHttpVersion, StringComparison.OrdinalIgnoreCase))
                             throw new HttpVersionNotSupportedException(new[] { SupportedHttpVersion }, header.HttpVersion);
 
-                        Console.WriteLine($"Incoming request {header.RequestUri}");
+                        _logger.LogInformation($"Incoming request {header.RequestUri}");
 
                         // Build the absolute resource request Uri (https://tools.ietf.org/html/rfc2616#section-5.2)
                         Uri absRequestUri;
@@ -164,7 +167,7 @@ namespace ElMariachi.Http.Server
                             }
                         }
 
-                        var inputStream = HttpServices.Instance.InputStreamDecodingStrategy.Create(httpInputStream, header);
+                        var inputStream = HttpServices.InputStreamDecodingStrategy.Create(httpInputStream, header);
 
                         request = new HttpRequest(header, inputStream, absRequestUri, responseSender);
                     }
@@ -203,7 +206,7 @@ namespace ElMariachi.Http.Server
                         // NOTE: here, the read timeout has been reached, we simply close the connection
 
                         if (!atLeastOneByteRead && isFirstRequestWithClient)
-                            Console.Error.WriteLine($"Incoming client {client.GetHashCode()} didn't send any byte within the time limit ({networkStream.ReadTimeout}ms).");
+                            _logger.LogWarning($"Incoming client {client.GetHashCode()} didn't send any byte within the time limit ({networkStream.ReadTimeout}ms).");
                         break;
                     }
                     catch (StreamEndException)
@@ -222,7 +225,6 @@ namespace ElMariachi.Http.Server
                     }
                     catch (Exception ex)
                     {
-                        OnUnexpectedErrorInternal(ex);
                         if (!responseSender.IsResponseSent)
                             SendApplicativeError(ex, request);
                         break;
@@ -245,16 +247,10 @@ namespace ElMariachi.Http.Server
                 if (networkStream != null)
                     await networkStream.DisposeAsync();
 
-                Console.WriteLine($"Exiting client: {client.GetHashCode()}.");
+                _logger.LogInformation($"Exiting client: {client.GetHashCode()}.");
                 client.Dispose();
             }
 
-        }
-
-
-        protected virtual void OnUnexpectedError(Exception ex)
-        {
-            Console.Error.WriteLine(ex);
         }
 
         private void OnUnexpectedErrorInternal(Exception ex)
@@ -263,10 +259,19 @@ namespace ElMariachi.Http.Server
             {
                 OnUnexpectedError(ex);
             }
-            catch (Exception)
+            catch
             {
-                Console.Error.WriteLine(ex);
+                // ignored
             }
+        }
+
+        /// <summary>
+        /// Override this method to change the behavior on unexpected server exception
+        /// </summary>
+        /// <param name="ex"></param>
+        protected virtual void OnUnexpectedError(Exception ex)
+        {
+            _logger.LogError(ex, $"Unexpected error occurred: {ex.Message}.");
         }
 
         private static void SendHttpVersionNotSupported(HttpVersionNotSupportedException ex, IHttpResponseSender responseSender)
@@ -277,16 +282,8 @@ namespace ElMariachi.Http.Server
 
         private void SendHttpRequestUriToolLong(RequestUriToolLongException ex, IHttpResponseSender responseSender)
         {
-            try
-            {
-                var response = CreateHttpRequestUriToolLongResponse(ex);
-                responseSender.Send(response);
-            }
-            catch (Exception ex2)
-            {
-                OnUnexpectedErrorInternal(ex2);
-                throw;
-            }
+            var response = CreateHttpRequestUriToolLongResponse(ex);
+            responseSender.Send(response);
         }
 
         /// <summary>
@@ -305,16 +302,8 @@ namespace ElMariachi.Http.Server
 
         private void SendBadRequest(Exception ex, IHttpResponseSender responseSender)
         {
-            try
-            {
-                var response = CreateBadRequestResponse(ex);
-                responseSender.Send(response);
-            }
-            catch (Exception ex2)
-            {
-                OnUnexpectedErrorInternal(ex2);
-                throw;
-            }
+            var response = CreateBadRequestResponse(ex);
+            responseSender.Send(response);
         }
 
         /// <summary>
@@ -332,17 +321,9 @@ namespace ElMariachi.Http.Server
 
         private void SendApplicativeError(Exception ex, IHttpRequest request)
         {
-            try
-            {
-                var response = CreateApplicativeErrorResponse(ex);
-                response.Request = request;
-                request.SendResponse(response);
-            }
-            catch (Exception ex2)
-            {
-                OnUnexpectedErrorInternal(ex2);
-                throw;
-            }
+            var response = CreateApplicativeErrorResponse(ex);
+            response.Request = request;
+            request.SendResponse(response);
         }
 
         /// <summary>
@@ -362,17 +343,9 @@ namespace ElMariachi.Http.Server
 
         private void SendFallbackResponse(IHttpRequest request)
         {
-            try
-            {
-                var response = CreateFallbackResponse();
-                response.Request = request;
-                request.SendResponse(response);
-            }
-            catch (Exception ex)
-            {
-                OnUnexpectedErrorInternal(ex);
-                throw;
-            }
+            var response = CreateFallbackResponse();
+            response.Request = request;
+            request.SendResponse(response);
         }
 
         /// <summary>

@@ -1,42 +1,47 @@
 ﻿using System;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace ElMariachi.Http.Server.Services
 {
-    public class HttpServices : IHttpServices
+    public static class HttpServices
     {
-        private IHttpInputStreamDecodingStrategy _inputStreamDecodingStrategy = new HttpInputStreamDecodingStrategy();
-        private IDefaultResponseHeadersSetter _defaultResponseHeadersSetter = new DefaultResponseHeadersSetter();
-        private IHttpHeaderReader _headerReader = new HttpHeaderReader();
-        private IHttpHeadersSerializer _headersSerializer = new HttpHeadersSerializer();
+        private static IHttpInputStreamDecodingStrategy _inputStreamDecodingStrategy = new HttpInputStreamDecodingStrategy();
+        private static IDefaultResponseHeadersSetter _defaultResponseHeadersSetter = new DefaultResponseHeadersSetter();
+        private static IHttpHeaderReader _headerReader = new HttpHeaderReader();
+        private static IHttpHeadersSerializer _headersSerializer = new HttpHeadersSerializer();
+        private static ILoggerFactory _loggerFactory = new NullLoggerFactory();
 
-        private HttpServices()
-        {
-        }
 
-        public IHttpInputStreamDecodingStrategy InputStreamDecodingStrategy
+        public static IHttpInputStreamDecodingStrategy InputStreamDecodingStrategy
         {
             get => _inputStreamDecodingStrategy;
             set => _inputStreamDecodingStrategy = value ?? throw new ArgumentNullException(nameof(InputStreamDecodingStrategy));
         }
 
-        public IDefaultResponseHeadersSetter DefaultResponseHeadersSetter
+        public static  IDefaultResponseHeadersSetter DefaultResponseHeadersSetter
         {
             get => _defaultResponseHeadersSetter;
             set => _defaultResponseHeadersSetter = value ?? throw new ArgumentNullException(nameof(DefaultResponseHeadersSetter));
         }
 
-        public IHttpHeaderReader HeaderReader
+        public static IHttpHeaderReader HeaderReader
         {
             get => _headerReader;
             set => _headerReader = value ?? throw new ArgumentNullException(nameof(HeaderReader));
         }
 
-        public IHttpHeadersSerializer HeadersSerializer
+        public static IHttpHeadersSerializer HeadersSerializer
         {
             get => _headersSerializer;
             set => _headersSerializer = value ?? throw new ArgumentNullException(nameof(HeadersSerializer));
         }
 
-        public static IHttpServices Instance { get; } = new HttpServices();
+        public static ILoggerFactory LoggerFactory
+        {
+            get => _loggerFactory;
+            set => _loggerFactory = value ?? throw new ArgumentNullException(nameof(LoggerFactory));
+        }
+
     }
 }

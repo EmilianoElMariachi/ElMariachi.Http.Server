@@ -54,7 +54,7 @@ namespace ElMariachi.Http.Server.Services.Internals
                 if (IsResponseSent)
                     throw new InvalidOperationException("A response was already sent for this request.");
 
-                HttpServices.Instance.DefaultResponseHeadersSetter.Set(headers);
+                HttpServices.DefaultResponseHeadersSetter.Set(headers);
 
                 CloseConnection = headers.Connection.Close;
                 SentResponse = response;
@@ -85,7 +85,7 @@ namespace ElMariachi.Http.Server.Services.Internals
 
         private static void SendResponseHeader(HttpStatus status, IHttpHeaders headers, Stream outputStream)
         {
-            var httpHeader = HttpServer.SupportedHttpVersion + " " + status.Code + " " + status.Description + HttpConst.LineReturn + HttpServices.Instance.HeadersSerializer.Serialize(headers) + HttpConst.LineReturn;
+            var httpHeader = HttpServer.SupportedHttpVersion + " " + status.Code + " " + status.Description + HttpConst.LineReturn + HttpServices.HeadersSerializer.Serialize(headers) + HttpConst.LineReturn;
             outputStream.Write(Encoding.ASCII.GetBytes(httpHeader));
         }
 
