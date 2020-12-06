@@ -1,5 +1,4 @@
-﻿using System;
-using System.Net;
+﻿using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using ElMariachi.Http.Server.Models;
@@ -10,9 +9,15 @@ namespace ElMariachi.Http.Server
     {
         /// <summary>
         /// Get or set the HTTP input stream reading timeout in milliseconds.
-        /// Set <see cref="Timeout.Infinite"/> for no timeout.
+        /// Set <see cref="Timeout.Infinite"/> for no timeout (not recommended).
         /// </summary>
-        int InputStreamReadTimeoutMs { get; set; }
+        int ReadTimeoutMs { get; set; }
+
+        /// <summary>
+        /// Get or set the maximum number of time (in milliseconds) a connection can be kept alive.
+        /// Set <see cref="Timeout.Infinite"/> for no timeout (not recommended).
+        /// </summary>
+        int ConnectionKeepAliveTimeoutMs { get; set; }
 
         /// <summary>
         /// Get or set the maximum number of bytes allowed for the method name for accepting a request

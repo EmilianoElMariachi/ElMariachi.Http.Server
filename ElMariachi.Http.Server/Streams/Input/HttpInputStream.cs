@@ -9,6 +9,9 @@ namespace ElMariachi.Http.Server.Streams.Input
     {
         private readonly IHttpResponseSender _httpResponseSender;
         private readonly NetworkStream _networkStream;
+        private bool _atLeastOneByteRead = false;
+
+        public event AtLeastOneByteReadHandler? AtLeastOneByteRead;
 
         public HttpInputStream(NetworkStream networkStream, IHttpResponseSender httpResponseSender)
         {
@@ -25,6 +28,12 @@ namespace ElMariachi.Http.Server.Streams.Input
             if (nbBytesRead <= 0)
                 throw new StreamEndException();
 
+            if (!_atLeastOneByteRead)
+            {
+                _atLeastOneByteRead = true;
+                NotifyAtLeastOneByteRead();
+            }
+
             return nbBytesRead;
         }
 
@@ -32,5 +41,12 @@ namespace ElMariachi.Http.Server.Streams.Input
         {
             // NOTE: not testable but do not close the NetworkStream!
         }
+
+        private void NotifyAtLeastOneByteRead()
+        {
+            AtLeastOneByteRead?.Invoke();
+        }
     }
+
+    internal delegate void AtLeastOneByteReadHandler();
 }

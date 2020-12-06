@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -31,13 +32,24 @@ namespace ElMariachi.Http.Server
 
         public int MaxRequestUriSize { get; set; } = 4 * 1024; // 4KiB
 
-        public int InputStreamReadTimeoutMs { get; set; } = 10000; // 10 sec
+        public int ReadTimeoutMs { get; set; } = 2000; // 2 sec
+
+        public int ConnectionKeepAliveTimeoutMs { get; set; } = 30000; // 60 sec
 
         public int MaxMethodNameSize { get; set; } = 30;
 
         public int MaxInputStreamCleaning { get; set; } = 4 * 1024 * 1024; // 4MiB
 
-        public bool IsListening => _tcpListenerEx.IsListening;
+        public bool IsListening
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return _tcpListenerEx.IsListening;
+                }
+            }
+        }
 
         public bool IsSecureConnection => false;
 
@@ -53,15 +65,7 @@ namespace ElMariachi.Http.Server
 
             lock (_lock)
             {
-                _tcpListenerEx.Start();
-
-                // NOTE: unfortunately, the AcceptTcpClient method doesn't accept a CancellationToken,
-                // the task below is waiting for a the cancellationToken to be signaled in order to stop the server.
-                Task.Run(() =>
-                {
-                    cancellationToken.WaitHandle.WaitOne();
-                    _tcpListenerEx.Stop();
-                }, cancellationToken);
+                _tcpListenerEx.Start(cancellationToken);
 
                 return Task.Run(() =>
                 {
@@ -82,6 +86,7 @@ namespace ElMariachi.Http.Server
             }
             catch (SocketException) when (ct.IsCancellationRequested)
             {
+                // NOTE: here, the server has been stopped properly
             }
         }
 
@@ -95,29 +100,40 @@ namespace ElMariachi.Http.Server
             {
                 networkStream = client.GetStream();
 
-                bool keepConnectionOpened;
+                var keepConnectionOpened = false;
+                var atLeastOneByteRead = false;
                 do
                 {
-                    var requestStart = DateTime.Now;
-                    client.ReceiveTimeout = InputStreamReadTimeoutMs;
+                    var isFirstRequestWithClient = !keepConnectionOpened;
+                    atLeastOneByteRead = false;
+
+                    networkStream.ReadTimeout = isFirstRequestWithClient ? ReadTimeoutMs : ConnectionKeepAliveTimeoutMs;
 
                     IHttpResponseSender responseSender = new HttpResponseSender(networkStream, MaxInputStreamCleaning);
-                    responseSender.ResponseSent += (sender, args) =>
-                    {
-                        var requestEnd = DateTime.Now;
-                        Console.WriteLine($"Processing time (ms): {(requestEnd - requestStart).TotalMilliseconds}");
-                    };
 
                     var httpInputStream = new HttpInputStream(networkStream, responseSender);
+
+                    DateTime? requestStart = null;
+                    httpInputStream.AtLeastOneByteRead += () =>
+                    {
+                        atLeastOneByteRead = true;
+                        requestStart = DateTime.Now;
+                        networkStream.ReadTimeout = ReadTimeoutMs;
+                    };
+
+                    responseSender.ResponseSent += (sender, args) =>
+                    {
+                        if (requestStart != null)
+                        {
+                            var requestEnd = DateTime.Now;
+                            Console.WriteLine($"Processing time (ms): {(requestEnd - requestStart.Value).TotalMilliseconds}");
+                        }
+                    };
 
                     HttpRequest request;
                     try
                     {
-                        client.ReceiveTimeout = Timeout.Infinite;
-                        var header = await Task.Run(() => HttpServices.Instance.HeaderReader.Read(httpInputStream, MaxMethodNameSize, MaxHeadersSize, MaxRequestUriSize, onFirstCharRead: () =>
-                        {
-                            client.ReceiveTimeout = InputStreamReadTimeoutMs;
-                        }));
+                        var header = HttpServices.Instance.HeaderReader.Read(httpInputStream, MaxMethodNameSize, MaxHeadersSize, MaxRequestUriSize);
 
                         // Check HTTP version is supported
                         if (!string.Equals(header.HttpVersion, SupportedHttpVersion, StringComparison.OrdinalIgnoreCase))
@@ -135,7 +151,7 @@ namespace ElMariachi.Http.Server
                             if (host == null)
                                 throw new NoAbsUriResourceRequestException("Unable to determine absolute resource URL, raw request URL is relative and Host header is missing.");
 
-                            var protocol = (IsSecureConnection ? "https://" : "http://");
+                            var protocol = IsSecureConnection ? "https://" : "http://";
                             var serverUrl = $"{protocol}{host}";
 
                             try
@@ -149,6 +165,7 @@ namespace ElMariachi.Http.Server
                         }
 
                         var inputStream = HttpServices.Instance.InputStreamDecodingStrategy.Create(httpInputStream, header);
+
                         request = new HttpRequest(header, inputStream, absRequestUri, responseSender);
                     }
                     catch (HttpVersionNotSupportedException ex)
@@ -181,6 +198,14 @@ namespace ElMariachi.Http.Server
                         SendBadRequest(ex, responseSender);
                         break;
                     }
+                    catch (IOException ex) when (ex.InnerException is SocketException ex2 && ex2.SocketErrorCode == SocketError.TimedOut)
+                    {
+                        // NOTE: here, the read timeout has been reached, we simply close the connection
+
+                        if (!atLeastOneByteRead && isFirstRequestWithClient)
+                            Console.Error.WriteLine($"Incoming client {client.GetHashCode()} didn't send any byte within the time limit ({networkStream.ReadTimeout}ms).");
+                        break;
+                    }
                     catch (StreamEndException)
                     {
                         // NOTE: here the connection has been closed (or broken) while reading the input inputStream.
@@ -208,7 +233,6 @@ namespace ElMariachi.Http.Server
                         SendFallbackResponse(request);
 
                     keepConnectionOpened = request.Headers.Connection.KeepAlive && !responseSender.CloseConnection;
-
                 } while (keepConnectionOpened);
 
             }

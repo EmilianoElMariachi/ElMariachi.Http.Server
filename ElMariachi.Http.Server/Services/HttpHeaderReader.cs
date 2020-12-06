@@ -10,14 +10,12 @@ namespace ElMariachi.Http.Server.Services
     public class HttpHeaderReader : IHttpHeaderReader
     {
 
-        public IHttpHeader Read(Stream stream, int maxMethodNameSize, int maxHeadersSize, int maxRequestUriSize, Action? onFirstCharRead)
+        public IHttpHeader Read(Stream stream, int maxMethodNameSize, int maxHeadersSize, int maxRequestUriSize)
         {
             string methodUpper;
             try
             {
-                var firstChar = stream.ReadChar();
-                onFirstCharRead?.Invoke();
-                methodUpper = firstChar + stream.ReadUntilSpace(maxMethodNameSize).Trim().ToUpper();
+                methodUpper = stream.ReadUntilSpace(maxMethodNameSize).Trim().ToUpper();
             }
             catch (StreamLimitException ex)
             {
