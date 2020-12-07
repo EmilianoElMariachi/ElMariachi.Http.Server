@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Threading;
 using System.Threading.Tasks;
 using ElMariachi.Http.Server.Demo.Properties;
 using ElMariachi.Http.Server.Models;
@@ -14,34 +13,48 @@ namespace ElMariachi.Http.Server.Demo
     {
         static async Task Main(string[] args)
         {
-            var serviceCollection = new ServiceCollection();
-
-
-            serviceCollection.AddHttpServer();
-            serviceCollection.AddLogging(builder => builder.AddConsole());
-
-            var serviceProvider = serviceCollection.BuildServiceProvider();
-
+            var serviceProvider = new ServiceCollection()
+                .AddHttpServer()        // Injects the HTTP server implementation in the ServiceCollection
+                .AddLogging(builder => builder.AddConsole())
+                .BuildServiceProvider();
 
             var httpServer = serviceProvider.Get<IHttpServer>();
 
-            var cts = new CancellationTokenSource();
-            var serverTask = httpServer.Start(OnRequest, cts.Token);
-
-            Console.WriteLine("Press «ESC» to stop");
-            while (Console.ReadKey(true).Key != ConsoleKey.Escape)
+            _ = Task.Run(() =>
             {
+                Console.WriteLine("Press «ESC» to stop");
+                
+                while (Console.ReadKey(true).Key != ConsoleKey.Escape) { }
+
+                httpServer.Stop();
+                Console.Write("Server stopping...");
+            });
+
+            Task serverTask;
+            try
+            {
+                serverTask = httpServer.Start(OnRequest);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to start HTTP Server: {ex.Message}.");
+                Console.WriteLine($"Press any key to exit.");
+                Console.ReadKey();
+                return;
             }
 
-            Console.Write("Server stopping...");
-            cts.Cancel();
-
-            serverTask.Wait(TimeSpan.FromSeconds(10));
-
-            Console.WriteLine("OK");
-
-            Console.WriteLine("Press any key to exit");
-            Console.ReadKey();
+            try
+            {
+                await serverTask;
+                Console.WriteLine("OK.");
+                Console.WriteLine($"Press any key to exit.");
+                Console.ReadKey();
+                return;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"HTTP server stopped abnormally: {ex.Message}.");
+            }
         }
 
         private static void OnRequest(IHttpRequest request)

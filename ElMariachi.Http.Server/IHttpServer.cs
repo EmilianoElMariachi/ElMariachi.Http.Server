@@ -8,6 +8,15 @@ namespace ElMariachi.Http.Server
 {
     public interface IHttpServer
     {
+        /// <summary>
+        /// Triggered when <see cref="ActiveConnectionsCount"/> property changes
+        /// </summary>
+        event ActiveConnectionsCountChangedHandler ActiveConnectionsCountChanged;
+
+        /// <summary>
+        /// Get the actual number of connected clients
+        /// </summary>
+        int ActiveConnectionsCount { get; }
 
         /// <summary>
         /// Get or set the server IP address.
@@ -60,7 +69,7 @@ namespace ElMariachi.Http.Server
         /// <summary>
         /// Get a boolean indicating that the server is currently listening
         /// </summary>
-        bool IsStarted { get; }
+        bool IsListening { get; }
 
         /// <summary>
         /// Get a boolean indicating if connection is secure (HTTPS)
@@ -75,15 +84,37 @@ namespace ElMariachi.Http.Server
         Task Start(RequestHandler requestHandler);
 
         /// <summary>
-        /// Starts the server
+        /// Stops the server.
+        /// Does not throw if server is already stopped.
         /// </summary>
-        /// <param name="requestHandler"></param>
-        /// <param name="cancellationToken">The cancellation token for stopping the server</param>
-        /// <returns></returns>
-        Task Start(RequestHandler requestHandler, CancellationToken cancellationToken);
+        /// <param name="waitForPendingRequest"></param>
+        void Stop(bool waitForPendingRequest = true);
 
     }
 
     public delegate void RequestHandler(IHttpRequest request);
+
+
+    public delegate void ActiveConnectionsCountChangedHandler(object sender, ActiveConnectionsCountChangedHandlerArgs args);
+
+
+    public enum CountChangeType
+    {
+        Gained,
+        Lost
+    }
+
+    public class ActiveConnectionsCountChangedHandlerArgs
+    {
+        public ActiveConnectionsCountChangedHandlerArgs(int actualCount, CountChangeType changeType)
+        {
+            ActualCount = actualCount;
+            ChangeType = changeType;
+        }
+        public int ActualCount { get; }
+
+        public CountChangeType ChangeType { get; }
+    }
+
 
 }

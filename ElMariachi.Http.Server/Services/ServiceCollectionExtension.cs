@@ -7,7 +7,7 @@ namespace ElMariachi.Http.Server.Services
     public static class ServiceCollectionExtension
     {
 
-        public static void AddHttpServer(this IServiceCollection serviceCollection)
+        public static IServiceCollection AddHttpServer(this IServiceCollection serviceCollection)
         {
             if (serviceCollection == null)
                 throw new ArgumentNullException(nameof(serviceCollection));
@@ -19,6 +19,8 @@ namespace ElMariachi.Http.Server.Services
             serviceCollection.AddSingleton<IHttpResponseSenderFactory, HttpResponseSenderFactory>();
             serviceCollection.AddSingleton<IHttpHeadersSerializer, HttpHeadersSerializer>();
             serviceCollection.AddSingleton<IHttpInputStreamDecodingStrategy, HttpInputStreamDecodingStrategy>();
+
+            return serviceCollection;
         }
 
         /// <summary>

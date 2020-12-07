@@ -1,8 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
 using ElMariachi.Http.Exceptions;
 using ElMariachi.Http.Header.Exceptions;
@@ -21,13 +21,15 @@ namespace ElMariachi.Http.Server
 
         private TcpListenerEx? _tcpListenerEx;
 
-        private readonly object _lock = new object();
+        private readonly object _tcpListenerLock = new object();
         private readonly ILogger<HttpServer> _logger;
         private readonly IHttpHeaderReader _headerReader;
         private readonly IHttpInputStreamDecodingStrategy _inputStreamDecodingStrategy;
         private readonly IHttpResponseSenderFactory _httpResponseSenderFactory;
         private int _port = 80;
         private IPAddress _ipAddress = IPAddress.Any;
+        private readonly List<TcpClient> _activeClients = new List<TcpClient>();
+        private StopRequest _stopRequest = StopRequest.None;
 
         public HttpServer(ILogger<HttpServer> logger, IHttpHeaderReader headerReader, IHttpInputStreamDecodingStrategy inputStreamDecodingStrategy, IHttpResponseSenderFactory httpResponseSenderFactory)
         {
@@ -40,6 +42,19 @@ namespace ElMariachi.Http.Server
         public int MaxHeadersSize { get; set; } = 8 * 1024; // 4KiB
 
         public int MaxRequestUriSize { get; set; } = 4 * 1024; // 4KiB
+
+        public event ActiveConnectionsCountChangedHandler? ActiveConnectionsCountChanged;
+
+        public int ActiveConnectionsCount
+        {
+            get
+            {
+                lock (_activeClients)
+                {
+                    return _activeClients.Count;
+                }
+            }
+        }
 
         public IPAddress IPAddress
         {
@@ -72,25 +87,20 @@ namespace ElMariachi.Http.Server
 
         public int MaxInputStreamCleaning { get; set; } = 4 * 1024 * 1024; // 4MiB
 
-        public bool IsStarted
+        public bool IsListening
         {
             get
             {
-                lock (_lock)
+                lock (_tcpListenerLock)
                 {
-                    return _tcpListenerEx != null;
+                    return _tcpListenerEx != null && _tcpListenerEx.IsListening;
                 }
             }
         }
 
         public bool IsSecureConnection => false;
 
-        public Task Start(RequestHandler requestHandler)
-        {
-            return Start(requestHandler, new CancellationToken());
-        }
-
-        public Task Start(RequestHandler requestHandler, CancellationToken cancellationToken)
+        public async Task Start(RequestHandler requestHandler)
         {
             if (requestHandler == null)
                 throw new ArgumentNullException(nameof(requestHandler));
@@ -99,63 +109,132 @@ namespace ElMariachi.Http.Server
             if (ipAddress == null)
                 throw new InvalidOperationException($"{nameof(IPAddress)} is not defined.");
 
-            if (_tcpListenerEx != null)
-                throw new InvalidOperationException("Server is already started.");
 
-            lock (_lock)
+            lock (_tcpListenerLock)
             {
-                try
-                {
-                    _tcpListenerEx = new TcpListenerEx(ipAddress, Port);
+                if (_tcpListenerEx != null)
+                    throw new InvalidOperationException("Server is already started.");
 
-                    _tcpListenerEx.Start(cancellationToken);
+                _tcpListenerEx = new TcpListenerEx(ipAddress, Port);
+            }
 
-                    return Task.Run(() =>
-                    {
-                        ListenClients(requestHandler, cancellationToken);
-                    }, cancellationToken).ContinueWith(task =>
-                    {
-                        _tcpListenerEx = null;
-                    }, cancellationToken);
-                }
-                catch
+            try
+            {
+                _tcpListenerEx.Start();
+
+                while (_tcpListenerEx != null && _stopRequest == StopRequest.None)
                 {
+                    TcpClient client;
                     try
-                    { _tcpListenerEx?.Stop(); }
-                    catch { }
+                    {
+                        client = await _tcpListenerEx.AcceptTcpClientAsync();
+                    }
+                    catch when (_stopRequest != StopRequest.None)
+                    {
+                        // NOTE: here, the TCP listener has been stopped
+                        break;
+                    }
 
-                    _tcpListenerEx = null;
-                    throw;
+                    _ = Task.Run(() =>
+                    {
+                        using (client)
+                        {
+                            try
+                            {
+                                _logger.LogTrace($"Incoming client: {client.GetHashCode()}.");
+                                lock (_activeClients)
+                                {
+                                    _activeClients.Add(client);
+                                    NotifyActiveConnectionsCountChanged(_activeClients.Count, CountChangeType.Gained);
+                                }
+                                HandleClient(client, requestHandler);
+                            }
+                            finally
+                            {
+                                lock (_activeClients)
+                                {
+                                    _activeClients.Remove(client);
+                                    NotifyActiveConnectionsCountChanged(_activeClients.Count, CountChangeType.Lost);
+                                }
+                                _logger.LogTrace($"Exiting client: {client.GetHashCode()}.");
+                            }
+                        }
+                    });
                 }
             }
-        }
-
-        private void ListenClients(RequestHandler requestHandler, CancellationToken ct)
-        {
-            try
+            finally
             {
-                while (!ct.IsCancellationRequested && _tcpListenerEx != null)
+                lock (_tcpListenerLock)
                 {
-                    var client = _tcpListenerEx.AcceptTcpClient();
-                    Task.Run(() => HandleClient(client, requestHandler), ct);
+                    _tcpListenerEx?.Stop();
+                    _tcpListenerEx = null;
+                    _stopRequest = StopRequest.None;
                 }
-            }
-            catch (SocketException) when (ct.IsCancellationRequested)
-            {
-                // NOTE: here, the server has been stopped properly
             }
         }
 
-        private async Task HandleClient(TcpClient client, RequestHandler requestHandler)
+        public void Stop(bool waitForPendingRequest)
         {
-            _logger.LogInformation($"Incoming client: {client.GetHashCode()}.");
+            if (_tcpListenerEx == null)
+                return;
 
-            NetworkStream? networkStream = null;
+            lock (_tcpListenerLock)
+            {
+                if (!waitForPendingRequest)
+                {
+                    _stopRequest = StopRequest.Aggressive;
+                    _tcpListenerEx?.Stop();
+                }
+                else
+                {
+                    _stopRequest = StopRequest.Kind;
 
+                    lock (_activeClients)
+                    {
+                        if (_activeClients.Count <= 0)
+                        {
+                            // Here, no client is connected, we can immediately
+                            _tcpListenerEx?.Stop();
+                        }
+                        else
+                        {
+                            // NOTE: the code below is commented because it is not working.
+                            // The idea here was to force the default timeout for all active connections in case of some of them were with the KeepAlive timeout.
+                            // Unfortunately, it appears that once a Read operation is started, updating the ReadTimeout is not taken into account...
+                            /*
+                            foreach (var activeClient in _activeClients)
+                                activeClient.GetStream().ReadTimeout = ReadTimeoutMs;
+                            */
+
+                            this.ActiveConnectionsCountChanged += ClientCountChangedHandler;
+
+                            void ClientCountChangedHandler(object sender, ActiveConnectionsCountChangedHandlerArgs args)
+                            {
+                                if (args.ActualCount <= 0)
+                                {
+                                    this.ActiveConnectionsCountChanged -= ClientCountChangedHandler;
+                                    _tcpListenerEx?.Stop();
+                                }
+                            }
+
+                        }
+                    }
+                }
+            }
+        }
+
+        private enum StopRequest
+        {
+            None,
+            Aggressive,
+            Kind
+        }
+
+        private void HandleClient(TcpClient client, RequestHandler requestHandler)
+        {
             try
             {
-                networkStream = client.GetStream();
-
+                var networkStream = client.GetStream();
                 var keepConnectionOpened = false;
                 var atLeastOneByteRead = false;
                 do
@@ -163,7 +242,7 @@ namespace ElMariachi.Http.Server
                     var isFirstRequestWithClient = !keepConnectionOpened;
                     atLeastOneByteRead = false;
 
-                    networkStream.ReadTimeout = isFirstRequestWithClient ? ReadTimeoutMs : ConnectionKeepAliveTimeoutMs;
+                    networkStream.ReadTimeout = (isFirstRequestWithClient || _stopRequest != StopRequest.None) ? ReadTimeoutMs : ConnectionKeepAliveTimeoutMs;
 
                     var responseSender = _httpResponseSenderFactory.Create(networkStream, MaxInputStreamCleaning);
 
@@ -174,7 +253,7 @@ namespace ElMariachi.Http.Server
                     {
                         atLeastOneByteRead = true;
                         requestStart = DateTime.Now;
-                        networkStream.ReadTimeout = ReadTimeoutMs;
+                        networkStream.ReadTimeout = ReadTimeoutMs;  // NOTE: once at least one byte is received we set the default read timeout
                     };
 
                     responseSender.ResponseSent += (sender, args) =>
@@ -182,7 +261,7 @@ namespace ElMariachi.Http.Server
                         if (requestStart != null)
                         {
                             var requestEnd = DateTime.Now;
-                            _logger.LogInformation($"Processing time (ms): {(requestEnd - requestStart.Value).TotalMilliseconds}");
+                            _logger.LogDebug($"Processing time (ms): {(requestEnd - requestStart.Value).TotalMilliseconds}");
                         }
                     };
 
@@ -287,21 +366,13 @@ namespace ElMariachi.Http.Server
                     if (!responseSender.IsResponseSent)
                         SendFallbackResponse(request);
 
-                    keepConnectionOpened = request.Headers.Connection.KeepAlive && !responseSender.CloseConnection;
+                    keepConnectionOpened = request.Headers.Connection.KeepAlive && !responseSender.CloseConnection && _stopRequest == StopRequest.None;
                 } while (keepConnectionOpened);
 
             }
             catch (Exception ex)
             {
                 OnUnexpectedErrorInternal(ex);
-            }
-            finally
-            {
-                if (networkStream != null)
-                    await networkStream.DisposeAsync();
-
-                _logger.LogInformation($"Exiting client: {client.GetHashCode()}.");
-                client.Dispose();
             }
 
         }
@@ -413,6 +484,11 @@ namespace ElMariachi.Http.Server
                 Content = new StringResponseContent("404, Not Found :(")
             };
             return httpResponse;
+        }
+
+        private void NotifyActiveConnectionsCountChanged(int actualCount, CountChangeType changeType)
+        {
+            ActiveConnectionsCountChanged?.Invoke(this, new ActiveConnectionsCountChangedHandlerArgs(actualCount, changeType));
         }
     }
 }
