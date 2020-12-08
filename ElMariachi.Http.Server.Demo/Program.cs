@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using ElMariachi.Http.Server.Demo.Properties;
 using ElMariachi.Http.Server.Models;
+using ElMariachi.Http.Server.Models.RequestContent;
 using ElMariachi.Http.Server.Models.ResponseContent;
 using ElMariachi.Http.Server.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -53,7 +54,6 @@ namespace ElMariachi.Http.Server.Demo
             catch (Exception ex)
             {
                 logger.LogError(ex, $"Failed to start HTTP Server: {ex.Message}");
-                logger.LogInformation("Press any key to exit.");
                 goto WaitEndExit;
             }
 
@@ -67,10 +67,9 @@ namespace ElMariachi.Http.Server.Demo
                 logger.LogError($"HTTP server stopped abnormally: {ex.Message}");
             }
 
-            WaitEndExit:
+        WaitEndExit:
             logger.LogInformation("Press any key to exit.");
             Console.ReadKey();
-
         }
 
         private static void OnRequest(IHttpRequest request)
@@ -94,7 +93,11 @@ namespace ElMariachi.Http.Server.Demo
             }
             else if (request.Method == "POST")
             {
-                //request.ReadContentAsStringAsync();
+                var content = request.ReadContentAsString();
+                request.SendResponse(new HttpResponse(HttpStatus.Ok)
+                {
+                    Content = new StringResponseContent(content)
+                });
             }
         }
     }
