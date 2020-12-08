@@ -84,11 +84,19 @@ namespace ElMariachi.Http.Server
         Task Start(RequestHandler requestHandler);
 
         /// <summary>
-        /// Stops the server.
+        /// Stops the server immediately.
         /// Does not throw if server is already stopped.
         /// </summary>
-        /// <param name="waitForPendingRequest"></param>
-        void Stop(bool waitForPendingRequest = true);
+        void Stop();
+
+        /// <summary>
+        /// Kindly stops the server, waiting for all pending requests and connections.
+        /// Does not throw if server is already stopped.
+        /// </summary>
+        /// <param name="timeout"></param>
+        /// <returns></returns>
+        /// <exception cref="TimeoutException"></exception>
+        Task Stop(TimeSpan timeout);
 
     }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using ElMariachi.Http.Exceptions;
 using ElMariachi.Http.Header.Exceptions;
@@ -173,45 +174,81 @@ namespace ElMariachi.Http.Server
             }
         }
 
-        public void Stop(bool waitForPendingRequest)
+        public Task Stop(TimeSpan timeout)
         {
-            if (_tcpListenerEx == null)
-                return;
-
             lock (_tcpListenerLock)
             {
-                if (!waitForPendingRequest)
-                {
-                    _stopRequest = StopRequest.Aggressive;
-                    _tcpListenerEx?.Stop();
-                }
-                else
+                if (_tcpListenerEx == null)
+                    return Task.CompletedTask;
+
+                return Task.Run(() =>
                 {
                     _stopRequest = StopRequest.Kind;
 
-                    lock (_activeClients)
+                    try
                     {
-                        if (_activeClients.Count <= 0)
-                        {
-                            // Here, no client is connected, we can immediately
-                            _tcpListenerEx?.Stop();
-                        }
-                        else
-                        {
-                            this.ActiveConnectionsCountChanged += ClientCountChangedHandler;
-
-                            void ClientCountChangedHandler(object sender, ActiveConnectionsCountChangedHandlerArgs args)
-                            {
-                                if (args.ActualCount <= 0)
-                                {
-                                    this.ActiveConnectionsCountChanged -= ClientCountChangedHandler;
-                                    _tcpListenerEx?.Stop();
-                                }
-                            }
-
-                        }
+                        using var noMoreConnectionsWaiter = new NoMoreConnectionsWaiter(this);
+                        if (!noMoreConnectionsWaiter.Wait(timeout))
+                            throw new TimeoutException($"Failed to kindly stop the server within the allocated time ({timeout}).");
                     }
+                    finally
+                    {
+                        _tcpListenerEx?.Stop();
+                    }
+                });
+            }
+        }
+
+        private class NoMoreConnectionsWaiter : IDisposable
+        {
+            private readonly IHttpServer _httpServer;
+            private readonly ManualResetEvent _manualResetEvent = new ManualResetEvent(false);
+
+            public NoMoreConnectionsWaiter(IHttpServer httpServer)
+            {
+
+                _httpServer = httpServer;
+                if (httpServer.ActiveConnectionsCount <= 0)
+                    _manualResetEvent.Set();
+                else
+                    httpServer.ActiveConnectionsCountChanged += OnActiveConnectionsCountChanged;
+            }
+
+            private void OnActiveConnectionsCountChanged(object sender, ActiveConnectionsCountChangedHandlerArgs args)
+            {
+                if (args.ActualCount <= 0)
+                {
+                    _httpServer.ActiveConnectionsCountChanged -= OnActiveConnectionsCountChanged;
+                    _manualResetEvent.Set();
                 }
+            }
+
+            /// <summary>
+            /// Wait until there is no active connection left.
+            /// </summary>
+            /// <param name="timeout"></param>
+            /// <returns>false if a timeout occurred, true otherwise</returns>
+            public bool Wait(TimeSpan timeout)
+            {
+                var signaled = _manualResetEvent.WaitOne(timeout);
+                return signaled;
+            }
+
+            public void Dispose()
+            {
+                _httpServer.ActiveConnectionsCountChanged -= OnActiveConnectionsCountChanged;
+                _manualResetEvent.Dispose();
+            }
+        }
+
+        public void Stop()
+        {
+            lock (_tcpListenerLock)
+            {
+                if (_tcpListenerEx == null)
+                    return;
+                _stopRequest = StopRequest.Aggressive;
+                _tcpListenerEx.Stop();
             }
         }
 

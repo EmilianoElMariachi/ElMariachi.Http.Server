@@ -27,14 +27,22 @@ namespace ElMariachi.Http.Server.Demo
                 logger.LogInformation($"Active connections {args.ActualCount} ({(args.ChangeType == CountChangeType.Gained ? "+1" : "-1")})");
             };
 
-            _ = Task.Run(() =>
+            _ = Task.Run(async () =>
             {
                 logger.LogInformation("Press «ESC» to stop");
 
                 while (Console.ReadKey(true).Key != ConsoleKey.Escape) { }
 
-                httpServer.Stop();
                 logger.LogInformation("Server stopping...");
+
+                try
+                {
+                    await httpServer.Stop(TimeSpan.FromMilliseconds(httpServer.ConnectionKeepAliveTimeoutMs));
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError($"An error occurred while stopping the server: {ex.Message}");
+                }
             });
 
             Task serverTask;
@@ -44,7 +52,7 @@ namespace ElMariachi.Http.Server.Demo
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, $"Failed to start HTTP Server: {ex.Message}.");
+                logger.LogError(ex, $"Failed to start HTTP Server: {ex.Message}");
                 logger.LogInformation("Press any key to exit.");
                 goto WaitEndExit;
             }
@@ -52,11 +60,11 @@ namespace ElMariachi.Http.Server.Demo
             try
             {
                 await serverTask;
-                logger.LogInformation("OK.");
+                logger.LogInformation("Server stopped.");
             }
             catch (Exception ex)
             {
-                logger.LogError($"HTTP server stopped abnormally: {ex.Message}.");
+                logger.LogError($"HTTP server stopped abnormally: {ex.Message}");
             }
 
             WaitEndExit:
