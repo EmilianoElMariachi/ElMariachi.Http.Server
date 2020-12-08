@@ -18,16 +18,23 @@ namespace ElMariachi.Http.Server.Demo
                 .AddLogging(builder => builder.AddConsole())
                 .BuildServiceProvider();
 
+            var logger = serviceProvider.Get<ILoggerFactory>().CreateLogger<Program>();
+
             var httpServer = serviceProvider.Get<IHttpServer>();
+
+            httpServer.ActiveConnectionsCountChanged += (sender, args) =>
+            {
+                logger.LogInformation($"Active connections {args.ActualCount} ({(args.ChangeType == CountChangeType.Gained ? "+1" : "-1")})");
+            };
 
             _ = Task.Run(() =>
             {
-                Console.WriteLine("Press «ESC» to stop");
-                
+                logger.LogInformation("Press «ESC» to stop");
+
                 while (Console.ReadKey(true).Key != ConsoleKey.Escape) { }
 
                 httpServer.Stop();
-                Console.Write("Server stopping...");
+                logger.LogInformation("Server stopping...");
             });
 
             Task serverTask;
@@ -37,24 +44,25 @@ namespace ElMariachi.Http.Server.Demo
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Failed to start HTTP Server: {ex.Message}.");
-                Console.WriteLine($"Press any key to exit.");
-                Console.ReadKey();
-                return;
+                logger.LogError(ex, $"Failed to start HTTP Server: {ex.Message}.");
+                logger.LogInformation("Press any key to exit.");
+                goto WaitEndExit;
             }
 
             try
             {
                 await serverTask;
-                Console.WriteLine("OK.");
-                Console.WriteLine($"Press any key to exit.");
-                Console.ReadKey();
-                return;
+                logger.LogInformation("OK.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"HTTP server stopped abnormally: {ex.Message}.");
+                logger.LogError($"HTTP server stopped abnormally: {ex.Message}.");
             }
+
+            WaitEndExit:
+            logger.LogInformation("Press any key to exit.");
+            Console.ReadKey();
+
         }
 
         private static void OnRequest(IHttpRequest request)

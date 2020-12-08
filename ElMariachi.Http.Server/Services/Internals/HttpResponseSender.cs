@@ -74,7 +74,7 @@ namespace ElMariachi.Http.Server.Services.Internals
                 if (!string.Equals(response.Request?.Method, "HEAD"))
                     content.CopyToStream(new HttpOutputStream(_networkStream));
 
-                NotifyResponseSent();
+                NotifyResponseSent(response.Status.Code, response.Headers.ContentType.MediaType);
             }
             catch (Exception)
             {
@@ -117,9 +117,9 @@ namespace ElMariachi.Http.Server.Services.Internals
             }
         }
 
-        private void NotifyResponseSent()
+        private void NotifyResponseSent(int statusCode, string? contentMediaType)
         {
-            ResponseSent?.Invoke(this, new ResponseSentHandlerArgs());
+            ResponseSent?.Invoke(this, new ResponseSentHandlerArgs(statusCode, contentMediaType));
         }
     }
 }

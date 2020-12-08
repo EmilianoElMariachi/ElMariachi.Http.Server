@@ -19,5 +19,16 @@ namespace ElMariachi.Http.Server.Services.Internals
 
     internal class ResponseSentHandlerArgs  
     {
+
+        public ResponseSentHandlerArgs(int statusCode, string? contentMediaType)
+        {
+            StatusCode = statusCode;
+            ContentMediaType = contentMediaType;
+        }
+
+        public int StatusCode { get; }
+
+        public string? ContentMediaType { get; }
+
     }
 }

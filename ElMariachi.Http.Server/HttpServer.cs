@@ -198,14 +198,6 @@ namespace ElMariachi.Http.Server
                         }
                         else
                         {
-                            // NOTE: the code below is commented because it is not working.
-                            // The idea here was to force the default timeout for all active connections in case of some of them were with the KeepAlive timeout.
-                            // Unfortunately, it appears that once a Read operation is started, updating the ReadTimeout is not taken into account...
-                            /*
-                            foreach (var activeClient in _activeClients)
-                                activeClient.GetStream().ReadTimeout = ReadTimeoutMs;
-                            */
-
                             this.ActiveConnectionsCountChanged += ClientCountChangedHandler;
 
                             void ClientCountChangedHandler(object sender, ActiveConnectionsCountChangedHandlerArgs args)
@@ -235,14 +227,13 @@ namespace ElMariachi.Http.Server
             try
             {
                 var networkStream = client.GetStream();
-                var keepConnectionOpened = false;
                 var atLeastOneByteRead = false;
+                bool keepConnectionOpened;
                 do
                 {
-                    var isFirstRequestWithClient = !keepConnectionOpened;
                     atLeastOneByteRead = false;
 
-                    networkStream.ReadTimeout = (isFirstRequestWithClient || _stopRequest != StopRequest.None) ? ReadTimeoutMs : ConnectionKeepAliveTimeoutMs;
+                    networkStream.ReadTimeout = _stopRequest == StopRequest.None ? ConnectionKeepAliveTimeoutMs : ReadTimeoutMs;
 
                     var responseSender = _httpResponseSenderFactory.Create(networkStream, MaxInputStreamCleaning);
 
@@ -261,7 +252,7 @@ namespace ElMariachi.Http.Server
                         if (requestStart != null)
                         {
                             var requestEnd = DateTime.Now;
-                            _logger.LogDebug($"Processing time (ms): {(requestEnd - requestStart.Value).TotalMilliseconds}");
+                            _logger.LogInformation($"Request finished in {(requestEnd - requestStart.Value).TotalMilliseconds}ms {args.StatusCode}");
                         }
                     };
 
@@ -274,7 +265,7 @@ namespace ElMariachi.Http.Server
                         if (!string.Equals(header.HttpVersion, SupportedHttpVersion, StringComparison.OrdinalIgnoreCase))
                             throw new HttpVersionNotSupportedException(new[] { SupportedHttpVersion }, header.HttpVersion);
 
-                        _logger.LogInformation($"Incoming request {header.RequestUri}");
+                        _logger.LogInformation($"Request starting {header.Method} {header.RequestUri}");
 
                         // Build the absolute resource request Uri (https://tools.ietf.org/html/rfc2616#section-5.2)
                         Uri absRequestUri;
@@ -337,8 +328,8 @@ namespace ElMariachi.Http.Server
                     {
                         // NOTE: here, the read timeout has been reached, we simply close the connection
 
-                        if (!atLeastOneByteRead && isFirstRequestWithClient)
-                            _logger.LogWarning($"Incoming client {client.GetHashCode()} didn't send any byte within the time limit ({networkStream.ReadTimeout}ms).");
+                        if (atLeastOneByteRead)
+                            _logger.LogWarning($"Request read timeout of ({networkStream.ReadTimeout}ms) occurred for client {client.GetHashCode()}, connection will be forcibly closed.");
                         break;
                     }
                     catch (StreamEndException)
