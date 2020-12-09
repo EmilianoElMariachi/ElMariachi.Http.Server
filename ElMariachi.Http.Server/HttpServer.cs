@@ -11,6 +11,7 @@ using ElMariachi.Http.Server.Models;
 using ElMariachi.Http.Server.Models.ResponseContent;
 using ElMariachi.Http.Server.Services;
 using ElMariachi.Http.Server.Services.Internals;
+using ElMariachi.Http.Server.Services.Internals.Logging;
 using ElMariachi.Http.Server.Streams.Input;
 using Microsoft.Extensions.Logging;
 
@@ -32,9 +33,9 @@ namespace ElMariachi.Http.Server
         private readonly List<TcpClient> _activeClients = new List<TcpClient>();
         private StopRequest _stopRequest = StopRequest.None;
 
-        public HttpServer(ILogger<HttpServer> logger, IHttpHeaderReader headerReader, IHttpInputStreamDecodingStrategy inputStreamDecodingStrategy, IHttpResponseSenderFactory httpResponseSenderFactory)
+        public HttpServer(IInternalLoggerFactory loggerFactory, IHttpHeaderReader headerReader, IHttpInputStreamDecodingStrategy inputStreamDecodingStrategy, IHttpResponseSenderFactory httpResponseSenderFactory)
         {
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _logger = (loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory))).Create<HttpServer>();
             _headerReader = headerReader ?? throw new ArgumentNullException(nameof(headerReader));
             _inputStreamDecodingStrategy = inputStreamDecodingStrategy ?? throw new ArgumentNullException(nameof(inputStreamDecodingStrategy));
             _httpResponseSenderFactory = httpResponseSenderFactory;

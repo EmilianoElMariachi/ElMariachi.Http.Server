@@ -2,6 +2,7 @@
 using System.Text;
 using ElMariachi.Http.Exceptions;
 using ElMariachi.Http.Server.Streams.Input;
+using ElMariachi.Http.Server.Test.TestUtils;
 using Xunit;
 
 namespace ElMariachi.Http.Server.Test.Streams.Input

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 
-namespace ElMariachi.Http.Server.Test.Streams
+namespace ElMariachi.Http.Server.Test.TestUtils
 {
     public class NetworkStreamEmulator : Stream
     {

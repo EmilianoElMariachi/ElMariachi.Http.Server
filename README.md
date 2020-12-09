@@ -16,6 +16,8 @@ I decided to create my own HTTP server implementation for at least 3 reasons:
 
 - No administrative privileges required
 - Simple
+- Fast
+- Lightweight
 - Extensible
 - Abstraction for all classes
 - Non destructive header parsing
@@ -27,8 +29,15 @@ I decided to create my own HTTP server implementation for at least 3 reasons:
 ```csharp
 async void Main(string[] args)
 {
+
+    var serviceProvider = new ServiceCollection()
+        .AddHttpServer() // Injects the HTTP server implementation in the ServiceCollection
+        .BuildServiceProvider();
+
     // Create a new server
-    var httpServer = IHttpServer.Create(IPAddress.Any, 80);
+    var httpServer = serviceProvider.GetRequiredService<IHttpServer>();
+    httpServer.IPAddress = IPAddress.Any;
+    httpServer.Port = 80;
     await httpServer.Start(OnRequest);
 }
 
@@ -46,6 +55,6 @@ void OnRequest(IHttpRequest request)
 There are probably plenty of things to do to improve this library, some feel free to contribute.
 
 
-*I spent a lot of my free time to develop this library, so if you like it, feel free to buy me <s>a beer</s> some vegetables  ;)*
+*I spent a lot of my free time to develop this library, so if you like it, feel free to buy me <s>a beer</s> some vegetables ;)*
 
 [![](https://www.paypalobjects.com/en_US/FR/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/donate?hosted_button_id=7HKHQ5Z72CS32)

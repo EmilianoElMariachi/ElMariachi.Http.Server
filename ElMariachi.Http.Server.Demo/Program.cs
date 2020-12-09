@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net;
 using System.Threading.Tasks;
 using ElMariachi.Http.Server.Demo.Properties;
 using ElMariachi.Http.Server.Models;
@@ -19,9 +20,11 @@ namespace ElMariachi.Http.Server.Demo
                 .AddLogging(builder => builder.AddConsole())
                 .BuildServiceProvider();
 
-            var logger = serviceProvider.Get<ILoggerFactory>().CreateLogger<Program>();
+            var logger = serviceProvider.GetRequiredService<ILogger<Program>>();
 
-            var httpServer = serviceProvider.Get<IHttpServer>();
+            var httpServer = serviceProvider.GetRequiredService<IHttpServer>();
+            httpServer.IPAddress = IPAddress.Any;
+            httpServer.Port = 80;
 
             httpServer.ActiveConnectionsCountChanged += (sender, args) =>
             {

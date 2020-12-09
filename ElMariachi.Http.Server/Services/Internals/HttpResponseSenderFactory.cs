@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net.Sockets;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ElMariachi.Http.Server.Services.Internals
 {
@@ -14,8 +15,8 @@ namespace ElMariachi.Http.Server.Services.Internals
 
         public IHttpResponseSender Create(NetworkStream networkStream, int maxInputStreamCleaning)
         {
-            var defaultResponseHeadersSetter = _serviceProvider.Get<IDefaultResponseHeadersSetter>();
-            var headersSerializer = _serviceProvider.Get<IHttpHeadersSerializer>();
+            var defaultResponseHeadersSetter = _serviceProvider.GetRequiredService<IDefaultResponseHeadersSetter>();
+            var headersSerializer = _serviceProvider.GetRequiredService<IHttpHeadersSerializer>();
 
             return new HttpResponseSender(networkStream, maxInputStreamCleaning, defaultResponseHeadersSetter, headersSerializer);
         }
