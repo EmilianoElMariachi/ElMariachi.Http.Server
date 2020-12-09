@@ -26,6 +26,8 @@ I decided to create my own HTTP server implementation for at least 3 reasons:
 
 ## Quick start
 
+Pick the latest nuget at [https://www.nuget.org/packages/ElMariachi.Http.Server/](https://www.nuget.org/packages/ElMariachi.Http.Server/)
+
 ```csharp
 async void Main(string[] args)
 {
