@@ -54,7 +54,7 @@ void OnRequest(IHttpRequest request)
 
 ## Additional notes
 
-There are probably plenty of things to do to improve this library, some feel free to contribute.
+There are probably plenty of things to do to improve this library, so feel free to contribute.
 
 
 *I spent a lot of my free time to develop this library, so if you like it, feel free to buy me <s>a beer</s> some vegetables ;)*
